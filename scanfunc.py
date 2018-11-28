@@ -1,19 +1,21 @@
 import os,re,gc
+import subprocess
 
 # 这个函数一次只扫描一个文件
 def scan_func(path,func_list,result):
-    # 读取文件内的所有内容
-    # 且全部保存到内存中
-    with open(path,"rb") as e:
-        # 对于非utf8格式编码出错的问题,这里暂时忽略掉这个文件
-        try:
-            filestr=e.read().decode(encoding="utf-8")
-        except UnicodeDecodeError:
-            print(path)
-            return
-    # 第一步先去掉注释,以免误判
-    annotation=re.compile(r"(/\*.*?\*/)|(//.*?\n)", re.S)
-    filestr=annotation.sub("",filestr)
+
+    # 使用使用gcc对文件进行预处理,将预处理的结果保存到filestr中
+    # 预处理默认会消除宏定义,并去掉注释
+    # 可以在gcc命令中设置预处理的宏定义以选择分支,这里先设置默认的分支
+    try:
+        filestr=subprocess.run(["gcc","-E","-P",path],capture_output=True).stdout.decode(encoding="utf-8")
+    except subprocess.CalledProcessError as identifier:
+        print("error:"+identifier.stderr)
+        exit(-1)
+    except UnicodeDecodeError:
+        print(path)
+        return
+
     # 第二步开始从中读取函数
     function=re.compile(r"extern\s+([\w\s]*?)[\s\*]+(\w+)\s+\(([^\)]*?)\)(;|(\s*__.*?;))",re.S)
     func_iter=function.finditer(filestr)
